@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Set
+from Lexer import Token
 
 @dataclass
 class Grammar:
@@ -270,3 +271,112 @@ def build_grammar() -> Grammar:
     }
 
     return Grammar(start_symbol="Programa", productions=prods)
+
+
+def first_of_sequence(seq: List[str],
+                      first: Dict[str, Set[str]],
+                      grammar: Grammar) -> Set[str]:
+    result: Set[str] = set()
+    for X in seq:
+        if X == "ε":
+            result.add("ε")
+            break
+        # terminal
+        if X not in grammar.productions:
+            result.add(X)
+            break
+        # não-terminal
+        result.update(first[X] - {"ε"})
+        if "ε" not in first[X]:
+            break
+    else:
+        result.add("ε")
+    return result
+
+
+def compute_first(grammar: Grammar) -> Dict[str, Set[str]]:
+    first: Dict[str, Set[str]] = {nt: set() for nt in grammar.productions}
+
+    changed = True
+    while changed:
+        changed = False
+        for A, prods in grammar.productions.items():
+            for prod in prods:
+                i = 0
+                while i < len(prod):
+                    X = prod[i]
+                    if X == "ε":
+                        if "ε" not in first[A]:
+                            first[A].add("ε")
+                            changed = True
+                        break
+                    if X not in grammar.productions:  # terminal
+                        if X not in first[A]:
+                            first[A].add(X)
+                            changed = True
+                        break
+                    before = len(first[A])
+                    first[A].update(first[X] - {"ε"})
+                    if "ε" not in first[X]:
+                        break
+                    if len(first[A]) != before:
+                        changed = True
+                    i += 1
+                else:
+                    if "ε" not in first[A]:
+                        first[A].add("ε")
+                        changed = True
+    return first
+
+
+def compute_follow(grammar: Grammar,
+                   first: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
+    follow: Dict[str, Set[str]] = {nt: set() for nt in grammar.productions}
+    follow[grammar.start_symbol].add("EOF")
+
+    changed = True
+    while changed:
+        changed = False
+        for A, prods in grammar.productions.items():
+            for prod in prods:
+                for i, B in enumerate(prod):
+                    if B in grammar.productions:  # B é não-terminal
+                        beta = prod[i + 1:]
+                        if beta:
+                            first_beta = first_of_sequence(beta, first, grammar)
+                            before = len(follow[B])
+                            follow[B].update(first_beta - {"ε"})
+                            if len(follow[B]) != before:
+                                changed = True
+                            if "ε" in first_beta:
+                                before = len(follow[B])
+                                follow[B].update(follow[A])
+                                if len(follow[B]) != before:
+                                    changed = True
+                        else:
+                            before = len(follow[B])
+                            follow[B].update(follow[A])
+                            if len(follow[B]) != before:
+                                changed = True
+    return follow
+
+
+def build_parsing_table(grammar: Grammar,
+                        first: Dict[str, Set[str]],
+                        follow: Dict[str, Set[str]]
+                        ) -> Dict[str, Dict[str, List[str]]]:
+    table: Dict[str, Dict[str, List[str]]] = {nt: {} for nt in grammar.productions}
+
+    for A, prods in grammar.productions.items():
+        for prod in prods:
+            first_alpha = first_of_sequence(prod, first, grammar)
+            for terminal in first_alpha - {"ε"}:
+                if terminal in table[A]:
+                    print(f"[AVISO] Conflito LL(1) em M[{A}, {terminal}]")
+                table[A][terminal] = prod
+            if "ε" in first_alpha:
+                for terminal in follow[A]:
+                    if terminal in table[A]:
+                        print(f"[AVISO] Conflito LL(1) em M[{A}, {terminal}]")
+                    table[A][terminal] = prod
+    return table
