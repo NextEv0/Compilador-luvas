@@ -51,8 +51,8 @@ class LukeraTokenizer:
     
     # Delimitadores
     DELIMITERS = {
-        ',': 'COMMA', ';': 'SEMI', '(': 'LPAREN', ')': 'RPAREN', '[': 'LBRACK', 
-        ']': 'RBRACK', '{': 'LBRACE', '}': 'RBRACE'
+        ':': 'DELIM', ',': 'COMMA', ';': 'SEMI', '(': 'LPAREN', ')': 'RPAREN',
+        '[': 'LBRACK', ']': 'RBRACK', '{': 'LBRACE', '}': 'RBRACE'
     }
 
     # Métodos da classe tokenizer

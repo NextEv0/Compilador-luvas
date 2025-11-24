@@ -1,231 +1,234 @@
+import pandas as pd
 from dataclasses import dataclass
 from typing import Dict, List, Set
-from Lexer import Token
+
+# Constante para representar o vazio (Epsilon).
+EPSILON = "ε"
 
 @dataclass
 class Grammar:
     start_symbol: str
     productions: Dict[str, List[List[str]]]
 
+def build_lukera_grammar() -> Grammar:
+    """
+    Constrói a gramática LL(1) da linguagem Lukera.
+    Retorna um objeto Grammar contendo o símbolo inicial e as produções.
+    """
 
-def build_grammar() -> Grammar:
     prods: Dict[str, List[List[str]]] = {
 
         # ================================
-        # PROGRAMA E ESTRUTURA GERAL
+        # 1. ESTRUTURA GERAL DO PROGRAMA
         # ================================
 
-        # programa : MAIN LBRACE bloco RBRACE funcao* EOF
-        # => Programa -> MAIN LBRACE Bloco RBRACE ListaFuncao EOF
-        "Programa": [["MAIN", "LBRACE", "Bloco", "RBRACE", "ListaFuncao", "EOF"]],
+        # Programa -> MAIN LBRACE Bloco RBRACE ListaFuncao EOF
+        "Programa": [
+            ["MAIN", "LBRACE", "Bloco", "RBRACE", "ListaFuncao", "EOF"]
+        ],
 
         # ListaFuncao -> Funcao ListaFuncao | ε
-        "ListaFuncao": [["Funcao", "ListaFuncao"], ["ε"]],
+        # ListaFuncao implementa (funcao)*
+        "ListaFuncao": [
+            ["Funcao", "ListaFuncao"], 
+            [EPSILON]
+        ],
 
-        # bloco : comandos
+        # Bloco -> Comandos
         "Bloco": [["Comandos"]],
 
-        # comandos : comando*
-        # => Comandos -> Comando Comandos | ε
-        "Comandos": [["Comando", "Comandos"], ["ε"]],
+        # Comandos -> Comando Comandos | ε
+        # Comandos implementar (comando)*
+        "Comandos": [
+            ["Comando", "Comandos"], 
+            [EPSILON]
+        ],
 
-        # comando
-        #   : declaracao
-        #   | comandoInicioID
-        #   | comandoBuiltinChamada
-        #   | condicional
-        #   | laco
-        #   | retorno
+        # Comando -> (Lista de todos os tipos de comandos possíveis)
         "Comando": [
             ["Declaracao"],
-            ["ComandoInicioID"],
-            ["ComandoBuiltinChamada"],
+            ["ComandoInicioID"],       # Cobre atribuições e chamadas de func usuário
+            ["ComandoBuiltinChamada"], # Cobre escreve(), leia(), etc usadas como comando
             ["Condicional"],
             ["Laco"],
             ["Retorno"],
         ],
 
         # ================================
-        # DECLARAÇÕES, ATRIBUIÇÕES E FUNÇÕES
+        # 2. DECLARAÇÕES E ATRIBUIÇÕES
         # ================================
 
-        # declaracao : DTYPE ID (EQ expressao)? SEMI
-        # => Declaracao -> DTYPE ID DeclInit SEMI
-        #    DeclInit -> EQ Expressao | ε
+        # Declaracao -> DTYPE ID DeclInit SEMI
         "Declaracao": [["DTYPE", "ID", "DeclInit", "SEMI"]],
-        "DeclInit": [["EQ", "Expressao"], ["ε"]],
 
-        # atribuicao : ID EQ expressao
+        # DeclInit -> EQ Expressao | ε
+        # DeclInit implmenta (expressao)? em Declaracao
+        "DeclInit": [
+            ["EQ", "Expressao"], 
+            [EPSILON]
+        ],
+
+        # Atribuicao -> ID EQ Expressao (Usada dentro do FOR)
         "Atribuicao": [["ID", "EQ", "Expressao"]],
 
-        # comandoInicioID : ID comandoInicioIDSufixo
+        # ComandoInicioID -> ID ComandoInicioIDSufixo
         "ComandoInicioID": [["ID", "ComandoInicioIDSufixo"]],
 
-        # comandoInicioIDSufixo
-        #   : EQ expressao SEMI
-        #   | LPAREN argumentos? RPAREN SEMI
-        # => usar ArgsOpt para argumentos?
+        # ComandoInicioIDSufixo -> EQ Expressao SEMI | LPAREN ArgsOpt RPAREN SEMI
         "ComandoInicioIDSufixo": [
-            ["EQ", "Expressao", "SEMI"],
-            ["LPAREN", "ArgsOpt", "RPAREN", "SEMI"],
+            ["EQ", "Expressao", "SEMI"],             # x = 10;
+            ["LPAREN", "ArgsOpt", "RPAREN", "SEMI"], # minhaFuncao();
         ],
 
-        # Chamadas de funções pré-definidas como comandos (com ';')
-        # comandoBuiltinChamada
-        #   : WRITE LPAREN argumentos? RPAREN SEMI
-        #   | INPUT LPAREN RPAREN SEMI
-        #   | RANDOM LPAREN argumentos? RPAREN SEMI
-        #   | RANGE LPAREN argumentos? RPAREN SEMI
-        #   | ABS LPAREN argumentos RPAREN SEMI
-        #   | SQRT LPAREN argumentos RPAREN SEMI
+        # OTIMIZAÇÃO: Reutiliza a regra de expressão para comandos built-in
+        # ComandoBuiltinChamada -> BuiltinCallExpr SEMI
         "ComandoBuiltinChamada": [
-            ["WRITE", "LPAREN", "ArgsOpt", "RPAREN", "SEMI"],
-            ["INPUT", "LPAREN", "RPAREN", "SEMI"],
-            ["RANDOM", "LPAREN", "ArgsOpt", "RPAREN", "SEMI"],
-            ["RANGE", "LPAREN", "ArgsOpt", "RPAREN", "SEMI"],
-            ["ABS", "LPAREN", "Argumentos", "RPAREN", "SEMI"],
-            ["SQRT", "LPAREN", "Argumentos", "RPAREN", "SEMI"],
+            ["BuiltinCallExpr", "SEMI"]
         ],
 
-        # funcao
-        #   : FUNCAO DTYPE ID LPAREN parametros? RPAREN LBRACE bloco RBRACE
-        # => Funcao -> FUNCAO DTYPE ID LPAREN ParametrosOpt RPAREN LBRACE Bloco RBRACE
-        "Funcao": [["FUNCAO", "DTYPE", "ID", "LPAREN", "ParametrosOpt",
-                    "RPAREN", "LBRACE", "Bloco", "RBRACE"]],
+        # ================================
+        # 3. FUNÇÕES E PARÂMETROS
+        # ================================
+
+        # Funcao -> FUNCAO DTYPE ID LPAREN ParametrosOpt RPAREN LBRACE Bloco RBRACE
+        "Funcao": [
+            ["FUNCAO", "DTYPE", "ID", "LPAREN", "ParametrosOpt", "RPAREN", "LBRACE", "Bloco", "RBRACE"]
+        ],
 
         # ParametrosOpt -> Parametros | ε
-        "ParametrosOpt": [["Parametros"], ["ε"]],
+        "ParametrosOpt": [
+            ["Parametros"], 
+            [EPSILON]
+        ],
 
-        # parametros : parametro (COMMA parametro)*
-        # => Parametros -> Parametro ParametrosLinha
+        # Parametros -> Parametro ParametrosLinha
         "Parametros": [["Parametro", "ParametrosLinha"]],
 
         # ParametrosLinha -> COMMA Parametro ParametrosLinha | ε
-        "ParametrosLinha": [["COMMA", "Parametro", "ParametrosLinha"], ["ε"]],
+        # ParametrosLinha implementa (COMMA parametro)*
+        "ParametrosLinha": [
+            ["COMMA", "Parametro", "ParametrosLinha"], 
+            [EPSILON]
+        ],
 
-        # parametro : DTYPE ID
+        # Parametro -> DTYPE ID
         "Parametro": [["DTYPE", "ID"]],
 
-        # argumentos : expressao (COMMA expressao)*
-        # => Argumentos -> Expressao ArgumentosLinha
-        "Argumentos": [["Expressao", "ArgumentosLinha"]],
-
-        # ArgumentosLinha -> COMMA Expressao ArgumentosLinha | ε
-        "ArgumentosLinha": [["COMMA", "Expressao", "ArgumentosLinha"], ["ε"]],
-
-        # ArgsOpt -> Argumentos | ε   (para "argumentos?")
-        "ArgsOpt": [["Argumentos"], ["ε"]],
-
-        # retorno : RETURN expressao SEMI
+        # Retorno -> RETURN Expressao SEMI
         "Retorno": [["RETURN", "Expressao", "SEMI"]],
 
         # ================================
-        # CONDICIONAIS E LAÇOS
+        # 4. ARGUMENTOS (Chamadas)
         # ================================
 
-        # condicional
-        #   : IF LPAREN expressao RPAREN LBRACE comandos RBRACE
-        #     (ELSIF LPAREN expressao RPAREN LBRACE comandos RBRACE)*
-        #     (ELSE LBRACE comandos RBRACE)?
-        # => Condicional -> IF (...) ListaElsif OpcionalElse
+        # ArgsOpt -> Argumentos | ε
+        "ArgsOpt": [
+            ["Argumentos"], 
+            [EPSILON]
+        ],
+
+        # Argumentos -> Expressao ArgumentosLinha
+        "Argumentos": [["Expressao", "ArgumentosLinha"]],
+
+        # ArgumentosLinha -> COMMA Expressao ArgumentosLinha | ε
+        # ArgumentosLinha implementa (COMMA expressao)*
+        "ArgumentosLinha": [
+            ["COMMA", "Expressao", "ArgumentosLinha"], 
+            [EPSILON]
+        ],
+
+        # ================================
+        # 5. ESTRUTURAS DE CONTROLE
+        # ================================
+
+        # Condicional -> IF ( Expr ) { Comandos } ListaElsif OpcionalElse
         "Condicional": [
-            ["IF", "LPAREN", "Expressao", "RPAREN", "LBRACE", "Comandos",
-             "RBRACE", "ListaElsif", "OpcionalElse"]
+            ["IF", "LPAREN", "Expressao", "RPAREN", "LBRACE", "Comandos", "RBRACE", "ListaElsif", "OpcionalElse"]
         ],
 
-        # ListaElsif -> ELSIF (...) {...} ListaElsif | ε
+        # ListaElsif -> ELSIF ( Expr ) { Comandos } ListaElsif | ε
         "ListaElsif": [
-            ["ELSIF", "LPAREN", "Expressao", "RPAREN", "LBRACE", "Comandos",
-             "RBRACE", "ListaElsif"],
-            ["ε"],
+            ["ELSIF", "LPAREN", "Expressao", "RPAREN", "LBRACE", "Comandos", "RBRACE", "ListaElsif"],
+            [EPSILON],
         ],
 
-        # OpcionalElse -> ELSE LBRACE Comandos RBRACE | ε
+        # OpcionalElse -> ELSE { Comandos } | ε
         "OpcionalElse": [
             ["ELSE", "LBRACE", "Comandos", "RBRACE"],
-            ["ε"],
+            [EPSILON],
         ],
 
-        # laco
-        #   : WHILE LPAREN expressao RPAREN LBRACE comandos RBRACE
-        #   | FOR LPAREN atribuicao SEMI expressao SEMI atribuicao RPAREN
-        #     LBRACE comandos RBRACE
+        # Laco -> WHILE ... | FOR ...
         "Laco": [
             ["WHILE", "LPAREN", "Expressao", "RPAREN", "LBRACE", "Comandos", "RBRACE"],
-            ["FOR", "LPAREN", "Atribuicao", "SEMI", "Expressao", "SEMI", "Atribuicao",
-             "RPAREN", "LBRACE", "Comandos", "RBRACE"],
+            ["FOR", "LPAREN", "Atribuicao", "SEMI", "Expressao", "SEMI", "Atribuicao", "RPAREN", "LBRACE", "Comandos", "RBRACE"],
         ],
 
         # ================================
-        # EXPRESSÕES (NÍVEIS DE PRECEDÊNCIA)
+        # 6. EXPRESSÕES (Hierarquia LL(1))
         # ================================
 
-        # expressao : exprOr
+        # Expressao -> ExprOr
         "Expressao": [["ExprOr"]],
 
-        # exprOr : exprAnd (OR exprAnd)*
-        # => ExprOr -> ExprAnd ExprOrLinha
+        # Nível 1: OR
         "ExprOr": [["ExprAnd", "ExprOrLinha"]],
-        "ExprOrLinha": [["OR", "ExprAnd", "ExprOrLinha"], ["ε"]],
-
-        # exprAnd : exprRel (AND exprRel)*
-        # => ExprAnd -> ExprRel ExprAndLinha
-        "ExprAnd": [["ExprRel", "ExprAndLinha"]],
-        "ExprAndLinha": [["AND", "ExprRel", "ExprAndLinha"], ["ε"]],
-
-        # exprRel
-        #   : exprAdd
-        #     ( (ISEQ | DIFF | GTHA | LTHA | GETHA | LETHA) exprAdd )*
-        # => ExprRel -> ExprAdd ExprRelLinha
-        "ExprRel": [["ExprAdd", "ExprRelLinha"]],
-        "ExprRelLinha": [["OpRel", "ExprAdd", "ExprRelLinha"], ["ε"]],
-
-        # OpRel -> ISEQ | DIFF | GTHA | LTHA | GETHA | LETHA
-        "OpRel": [
-            ["ISEQ"],
-            ["DIFF"],
-            ["GTHA"],
-            ["LTHA"],
-            ["GETHA"],
-            ["LETHA"],
+        "ExprOrLinha": [
+            ["OR", "ExprAnd", "ExprOrLinha"], 
+            [EPSILON]
         ],
 
-        # exprAdd : exprMul ( (SUM | SUB) exprMul )*
-        # => ExprAdd -> ExprMul ExprAddLinha
-        "ExprAdd": [["ExprMul", "ExprAddLinha"]],
-        "ExprAddLinha": [["OpAdd", "ExprMul", "ExprAddLinha"], ["ε"]],
+        # Nível 2: AND
+        "ExprAnd": [["ExprRel", "ExprAndLinha"]],
+        "ExprAndLinha": [
+            ["AND", "ExprRel", "ExprAndLinha"], 
+            [EPSILON]
+        ],
 
-        # OpAdd -> SUM | SUB
+        # Nível 3: Relacional e Igualdade
+        "ExprRel": [["ExprAdd", "ExprRelLinha"]],
+        "ExprRelLinha": [
+            ["OpRel", "ExprAdd", "ExprRelLinha"], 
+            [EPSILON]
+        ],
+
+        "OpRel": [
+            ["ISEQ"], ["DIFF"], ["GTHA"], ["LTHA"], ["GETHA"], ["LETHA"]
+        ],
+
+        # Nível 4: Adição e Subtração
+        "ExprAdd": [["ExprMul", "ExprAddLinha"]],
+        "ExprAddLinha": [
+            ["OpAdd", "ExprMul", "ExprAddLinha"], 
+            [EPSILON]
+        ],
+
         "OpAdd": [["SUM"], ["SUB"]],
 
-        # exprMul : exprPow ( (MUL | DIV | MOD) exprPow )*
-        # => ExprMul -> ExprPow ExprMulLinha
+        # Nível 5: Multiplicação, Divisão, Módulo
         "ExprMul": [["ExprPow", "ExprMulLinha"]],
-        "ExprMulLinha": [["OpMul", "ExprPow", "ExprMulLinha"], ["ε"]],
+        "ExprMulLinha": [
+            ["OpMul", "ExprPow", "ExprMulLinha"], 
+            [EPSILON]
+        ],
 
-        # OpMul -> MUL | DIV | MOD
         "OpMul": [["MUL"], ["DIV"], ["MOD"]],
 
-        # exprPow : exprUnary (POW exprPow)?
-        # => ExprPow -> ExprUnary ExprPowLinha
+        # Nível 6: Potência
         "ExprPow": [["ExprUnary", "ExprPowLinha"]],
-        "ExprPowLinha": [["POW", "ExprPow"], ["ε"]],
+        "ExprPowLinha": [
+            ["POW", "ExprPow"], # Recursão à direita aqui simula associatividade à direita
+            [EPSILON]
+        ],
 
-        # exprUnary
-        #   : NOT exprUnary
-        #   | SUB exprUnary
-        #   | primario
+        # Nível 7: Unários
         "ExprUnary": [
             ["NOT", "ExprUnary"],
             ["SUB", "ExprUnary"],
             ["Primario"],
         ],
 
-        # primario
-        #   : LPAREN expressao RPAREN
-        #   | builtinCallExpr
-        #   | ID primarioIdSufixo
-        #   | literal
+        # Nível 8: Primários (Átomos)
         "Primario": [
             ["LPAREN", "Expressao", "RPAREN"],
             ["BuiltinCallExpr"],
@@ -233,21 +236,13 @@ def build_grammar() -> Grammar:
             ["Literal"],
         ],
 
-        # primarioIdSufixo
-        #   : LPAREN argumentos? RPAREN
-        #   | ε
+        # Resolve ambiguidade ID vs Chamada de Função em expressões
         "PrimarioIdSufixo": [
             ["LPAREN", "ArgsOpt", "RPAREN"],
-            ["ε"],
+            [EPSILON], # É apenas uma variável
         ],
 
-        # builtinCallExpr
-        #   : WRITE LPAREN argumentos? RPAREN
-        #   | INPUT LPAREN RPAREN
-        #   | RANDOM LPAREN argumentos? RPAREN
-        #   | RANGE LPAREN argumentos? RPAREN
-        #   | ABS LPAREN argumentos RPAREN
-        #   | SQRT LPAREN argumentos RPAREN
+        # Funções Nativas (Built-ins)
         "BuiltinCallExpr": [
             ["WRITE", "LPAREN", "ArgsOpt", "RPAREN"],
             ["INPUT", "LPAREN", "RPAREN"],
@@ -257,13 +252,9 @@ def build_grammar() -> Grammar:
             ["SQRT", "LPAREN", "Argumentos", "RPAREN"],
         ],
 
-        # literal
-        #   : INT
-        #   | FLOAT
-        #   | BOOL
-        #   | STRING
+        # Literais
         "Literal": [
-            ["INT"],
+            ["INTEGER"],
             ["FLOAT"],
             ["BOOL"],
             ["STRING"],
@@ -276,25 +267,44 @@ def build_grammar() -> Grammar:
 def first_of_sequence(seq: List[str],
                       first: Dict[str, Set[str]],
                       grammar: Grammar) -> Set[str]:
+    """
+    Calcula o FIRST de uma sequência de símbolos (ex: o lado direito de uma produção).
+    """
     result: Set[str] = set()
+    
+    # Se a sequência for vazia, o FIRST é epsilon (ex: A -> ε)
+    if not seq:
+        result.add(EPSILON)
+        return result
+
     for X in seq:
-        if X == "ε":
-            result.add("ε")
+        if X == EPSILON:
+            result.add(EPSILON)
             break
-        # terminal
+        
+        # Se X é terminal (não está nas chaves do dicionário de produções)
         if X not in grammar.productions:
             result.add(X)
             break
-        # não-terminal
-        result.update(first[X] - {"ε"})
-        if "ε" not in first[X]:
+        
+        # Se X é não-terminal, adiciona FIRST(X) - {ε}
+        result.update(first[X] - {EPSILON})
+        
+        # Se ε não está no FIRST(X), paramos (não propagamos mais)
+        if EPSILON not in first[X]:
             break
     else:
-        result.add("ε")
+        # Se o loop terminou sem break, significa que todos eram anuláveis
+        result.add(EPSILON)
+        
     return result
 
 
 def compute_first(grammar: Grammar) -> Dict[str, Set[str]]:
+    """
+    Calcula o conjunto FIRST para todos os não-terminais da gramática.
+    """
+    # Inicializa conjuntos vazios
     first: Dict[str, Set[str]] = {nt: set() for nt in grammar.productions}
 
     changed = True
@@ -302,36 +312,24 @@ def compute_first(grammar: Grammar) -> Dict[str, Set[str]]:
         changed = False
         for A, prods in grammar.productions.items():
             for prod in prods:
-                i = 0
-                while i < len(prod):
-                    X = prod[i]
-                    if X == "ε":
-                        if "ε" not in first[A]:
-                            first[A].add("ε")
-                            changed = True
-                        break
-                    if X not in grammar.productions:  # terminal
-                        if X not in first[A]:
-                            first[A].add(X)
-                            changed = True
-                        break
-                    before = len(first[A])
-                    first[A].update(first[X] - {"ε"})
-                    if "ε" not in first[X]:
-                        break
-                    if len(first[A]) != before:
-                        changed = True
-                    i += 1
-                else:
-                    if "ε" not in first[A]:
-                        first[A].add("ε")
-                        changed = True
+                # OTIMIZAÇÃO: Reutiliza first_of_sequence em vez de reescrever a lógica
+                rhs_first = first_of_sequence(prod, first, grammar)
+                
+                # Se encontrarmos novos símbolos, atualizamos e marcamos mudança
+                if not rhs_first.issubset(first[A]):
+                    first[A].update(rhs_first)
+                    changed = True
     return first
 
 
 def compute_follow(grammar: Grammar,
                    first: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
+    """
+    Calcula o conjunto FOLLOW para todos os não-terminais.
+    """
     follow: Dict[str, Set[str]] = {nt: set() for nt in grammar.productions}
+    
+    # Regra 1: O símbolo inicial contém EOF
     follow[grammar.start_symbol].add("EOF")
 
     changed = True
@@ -339,24 +337,33 @@ def compute_follow(grammar: Grammar,
         changed = False
         for A, prods in grammar.productions.items():
             for prod in prods:
+                # Percorre a produção buscando Não-Terminais (B)
                 for i, B in enumerate(prod):
                     if B in grammar.productions:  # B é não-terminal
-                        beta = prod[i + 1:]
+                        beta = prod[i + 1:] # O que vem depois de B
+                        
                         if beta:
+                            # Regra 2: FOLLOW(B) recebe FIRST(beta) - {ε}
                             first_beta = first_of_sequence(beta, first, grammar)
-                            before = len(follow[B])
-                            follow[B].update(first_beta - {"ε"})
-                            if len(follow[B]) != before:
+                            before_len = len(follow[B])
+                            
+                            follow[B].update(first_beta - {EPSILON})
+                            
+                            if len(follow[B]) != before_len:
                                 changed = True
-                            if "ε" in first_beta:
-                                before = len(follow[B])
+                                
+                            # Regra 3: Se beta é anulável, FOLLOW(B) recebe FOLLOW(A)
+                            if EPSILON in first_beta:
+                                before_len = len(follow[B])
                                 follow[B].update(follow[A])
-                                if len(follow[B]) != before:
+                                if len(follow[B]) != before_len:
                                     changed = True
                         else:
-                            before = len(follow[B])
+                            # Regra 3 (Caso final): A -> alpha B (beta é vazio)
+                            # FOLLOW(B) recebe FOLLOW(A)
+                            before_len = len(follow[B])
                             follow[B].update(follow[A])
-                            if len(follow[B]) != before:
+                            if len(follow[B]) != before_len:
                                 changed = True
     return follow
 
@@ -365,18 +372,79 @@ def build_parsing_table(grammar: Grammar,
                         first: Dict[str, Set[str]],
                         follow: Dict[str, Set[str]]
                         ) -> Dict[str, Dict[str, List[str]]]:
+    """
+    Constrói a Tabela de Parsing M[Não-Terminal, Terminal] = Produção.
+    """
     table: Dict[str, Dict[str, List[str]]] = {nt: {} for nt in grammar.productions}
-
+    
+    # Itera sobre todas as produções A -> alpha
     for A, prods in grammar.productions.items():
         for prod in prods:
+            # Calcula FIRST(alpha)
             first_alpha = first_of_sequence(prod, first, grammar)
-            for terminal in first_alpha - {"ε"}:
+            
+            # 1. Para cada terminal 'a' em FIRST(alpha), M[A, a] = alpha
+            for terminal in first_alpha - {EPSILON}:
                 if terminal in table[A]:
-                    print(f"[AVISO] Conflito LL(1) em M[{A}, {terminal}]")
+                    print(f"[CRÍTICO] Conflito LL(1) em M[{A}, {terminal}]. Regras colidindo!")
+                    # Você pode optar por levantar erro aqui:
+                    # raise Exception(f"Gramática não é LL(1): Conflito em {A} com token {terminal}")
                 table[A][terminal] = prod
-            if "ε" in first_alpha:
+            
+            # 2. Se epsilon está em FIRST(alpha), para cada 'b' em FOLLOW(A), M[A, b] = alpha
+            if EPSILON in first_alpha:
                 for terminal in follow[A]:
                     if terminal in table[A]:
-                        print(f"[AVISO] Conflito LL(1) em M[{A}, {terminal}]")
+                        print(f"[CRÍTICO] Conflito LL(1) (via Follow) em M[{A}, {terminal}]")
                     table[A][terminal] = prod
+                    
     return table
+
+
+def parsing_table_pandas(grammar:Grammar, first:dict, follow: dict, jupyter=True) -> pd.DataFrame:
+    """
+    Executa os algoritmos LL(1) e exibe a tabela resultante usando Pandas.
+    """
+    # 1. Executar a lógica do parser
+    parsing_table = build_parsing_table(grammar, first, follow)
+
+    # 2. Preparar dados para o Pandas
+    # Linhas: Todos os Não-Terminais
+    rows = list(grammar.productions.keys())
+    
+    # Colunas: Todos os terminais encontrados na tabela
+    cols = set()
+    for row_dict in parsing_table.values():
+        cols.update(row_dict.keys())
+    sorted_cols = sorted(list(cols))
+    
+    # Ajuste visual: EOF no final
+    if "EOF" in sorted_cols:
+        sorted_cols.remove("EOF")
+        sorted_cols.append("EOF")
+
+    # 3. Construir a Matriz de Strings
+    data = []
+    for nt in rows:
+        row_data = []
+        for term in sorted_cols:
+            if term in parsing_table[nt]:
+                # Transforma a lista ['IF', 'LPAREN'...] em string "IF LPAREN..."
+                prod_list = parsing_table[nt][term]
+                prod_str = " ".join(prod_list)
+                cell_value = f"{nt} -> {prod_str}"
+            else:
+                cell_value = "" # Célula vazia
+            row_data.append(cell_value)
+        data.append(row_data)
+
+    # 4. Criar e Exibir DataFrame
+    df = pd.DataFrame(data, index=rows, columns=sorted_cols)
+    
+    # Configurações para exibir a tabela inteira no terminal sem cortes
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.width', 2000)
+    pd.set_option('display.max_colwidth', None)
+    
+    return df
