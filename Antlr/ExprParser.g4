@@ -25,7 +25,7 @@ comandos
 
 // Comando genérico
 comando
-  : declaracao
+  : declaracao               // declaração de variáveis
   | comandoInicioID          // atribuição ou chamada de função de usuário
   | comandoBuiltinChamada    // chamadas WRITE/INPUT/etc como comando
   | condicional
@@ -42,7 +42,6 @@ declaracao
   : DTYPE ID (EQ expressao)? SEMI
   ;
 
-// Atribuição "pura" (sem o ponto e vírgula)
 // Usada em cabeçalho de FOR e internamente
 atribuicao
   : ID EQ expressao
@@ -107,7 +106,7 @@ laco
   ;
 
 // ================================
-// EXPRESSÕES (NÃO AMBÍGUAS, LL(1))
+// EXPRESSÕES (HIERARQUIA LL(1))
 // ================================
 
 // Expressão de mais alto nível

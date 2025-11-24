@@ -64,7 +64,7 @@ LETHA: '<=';
 // =====================
 // Delimitadores
 // =====================
-DELIM   : ':';     // se precisar de dois-pontos
+DELIM   : ':';
 COMMA   : ',';
 SEMI    : ';';
 LPAREN  : '(';
