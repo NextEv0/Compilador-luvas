@@ -1,0 +1,20 @@
+principal {
+    inteiro r = soma(2, 3);
+    logico par = ehPar(r);
+
+    se (par) {
+      escreve("par");
+    } senao {
+      escreve("impar");
+    }
+
+    retorna r;
+}
+
+funcao inteiro soma(inteiro a, inteiro b) {
+    retorna a + b;
+}
+
+funcao logico ehPar(inteiro n) {
+    retorna (n % 2 == 0);
+}
